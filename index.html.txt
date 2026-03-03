@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Inventario PARISU PRO</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{
+    font-family: 'Segoe UI', sans-serif;
+    margin:0;
+    background:#f2f2f2;
+}
+header{
+    background:#000;
+    color:white;
+    padding:15px;
+    text-align:center;
+    font-size:22px;
+}
+.container{
+    padding:20px;
+    max-width:1200px;
+    margin:auto;
+}
+.card{
+    background:white;
+    padding:15px;
+    border-radius:10px;
+    box-shadow:0 4px 8px rgba(0,0,0,0.1);
+    margin-bottom:20px;
+}
+.flex{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+}
+input, select{
+    padding:8px;
+}
+button{
+    padding:8px 15px;
+    background:black;
+    color:white;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+button:hover{
+    background:#444;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+th, td{
+    padding:8px;
+    border:1px solid #ddd;
+    text-align:center;
+}
+th{
+    background:black;
+    color:white;
+}
+.low{
+    background:#ffd6d6;
+}
+.stats{
+    font-size:18px;
+    font-weight:bold;
+}
+.mov-entrada{
+    color:green;
+    font-weight:bold;
+}
+.mov-salida{
+    color:red;
+    font-weight:bold;
+}
+@media(max-width:768px){
+    .flex{flex-direction:column;}
+}
+</style>
+</head>
+
+<body>
+
+<header>Inventario Profesional PARISU</header>
+
+<div class="container">
+
+<!-- MOVIMIENTOS -->
+<div class="card">
+<h3>Registrar Movimiento</h3>
+<div class="flex">
+
+<select id="tipoMovimiento">
+<option value="entrada">Entrada</option>
+<option value="salida">Salida</option>
+</select>
+
+<select id="manga">
+<option>Manga Corta</option>
+<option>Manga Larga</option>
+</select>
+
+<select id="corte">
+<option>Caballero</option>
+<option>Dama</option>
+</select>
+
+<select id="talla">
+<option>CH</option>
+<option>M</option>
+<option>G</option>
+<option>XL</option>
+<option>XXL</option>
+</select>
+
+<input type="text" id="color" placeholder="Color">
+<input type="number" id="cantidad" placeholder="Cantidad">
+
+<button onclick="registrarMovimiento()">Registrar</button>
+
+</div>
+</div>
+
+<!-- INVENTARIO -->
+<div class="card stats">
+Total de piezas actuales: <span id="totalPiezas">0</span>
+</div>
+
+<div class="card">
+<h3>Inventario Actual</h3>
+<table>
+<thead>
+<tr>
+<th>Manga</th>
+<th>Corte</th>
+<th>Talla</th>
+<th>Color</th>
+<th>Stock</th>
+</tr>
+</thead>
+<tbody id="tablaInventario"></tbody>
+</table>
+</div>
+
+<!-- HISTORIAL -->
+<div class="card">
+<h3>Historial de Movimientos</h3>
+<table>
+<thead>
+<tr>
+<th>Fecha</th>
+<th>Tipo</th>
+<th>Manga</th>
+<th>Corte</th>
+<th>Talla</th>
+<th>Color</th>
+<th>Cantidad</th>
+</tr>
+</thead>
+<tbody id="tablaHistorial"></tbody>
+</table>
+<button onclick="exportarCSV()">Exportar Historial a Excel</button>
+</div>
+
+</div>
+
+<script>
+
+let inventario = JSON.parse(localStorage.getItem("inventarioParisu")) || [];
+let historial = JSON.parse(localStorage.getItem("historialParisu")) || [];
+
+function guardar(){
+    localStorage.setItem("inventarioParisu", JSON.stringify(inventario));
+    localStorage.setItem("historialParisu", JSON.stringify(historial));
+}
+
+function registrarMovimiento(){
+
+    let tipo = document.getElementById("tipoMovimiento").value;
+    let manga = document.getElementById("manga").value;
+    let corte = document.getElementById("corte").value;
+    let talla = document.getElementById("talla").value;
+    let color = document.getElementById("color").value.trim();
+    let cantidad = parseInt(document.getElementById("cantidad").value);
+
+    if(!color || isNaN(cantidad)) return alert("Completa todos los campos");
+
+    let producto = inventario.find(p =>
+        p.manga==manga &&
+        p.corte==corte &&
+        p.talla==talla &&
+        p.color.toLowerCase()==color.toLowerCase()
+    );
+
+    if(tipo==="entrada"){
+        if(producto){
+            producto.stock += cantidad;
+        } else {
+            inventario.push({manga, corte, talla, color, stock:cantidad});
+        }
+    }
+
+    if(tipo==="salida"){
+        if(!producto || producto.stock < cantidad){
+            return alert("No hay suficiente stock disponible");
+        }
+        producto.stock -= cantidad;
+    }
+
+    historial.push({
+        fecha:new Date().toLocaleString(),
+        tipo,
+        manga,
+        corte,
+        talla,
+        color,
+        cantidad
+    });
+
+    guardar();
+    mostrarInventario();
+    mostrarHistorial();
+
+    document.getElementById("color").value="";
+    document.getElementById("cantidad").value="";
+}
+
+function mostrarInventario(){
+    let tabla = document.getElementById("tablaInventario");
+    tabla.innerHTML="";
+    let total=0;
+
+    inventario.forEach(item=>{
+        total+=item.stock;
+        tabla.innerHTML+=`
+        <tr class="${item.stock<=5?'low':''}">
+            <td>${item.manga}</td>
+            <td>${item.corte}</td>
+            <td>${item.talla}</td>
+            <td>${item.color}</td>
+            <td>${item.stock}</td>
+        </tr>
+        `;
+    });
+
+    document.getElementById("totalPiezas").innerText=total;
+}
+
+function mostrarHistorial(){
+    let tabla=document.getElementById("tablaHistorial");
+    tabla.innerHTML="";
+
+    historial.slice().reverse().forEach(m=>{
+        tabla.innerHTML+=`
+        <tr>
+            <td>${m.fecha}</td>
+            <td class="${m.tipo==='entrada'?'mov-entrada':'mov-salida'}">
+                ${m.tipo.toUpperCase()}
+            </td>
+            <td>${m.manga}</td>
+            <td>${m.corte}</td>
+            <td>${m.talla}</td>
+            <td>${m.color}</td>
+            <td>${m.cantidad}</td>
+        </tr>
+        `;
+    });
+}
+
+function exportarCSV(){
+    let csv="Fecha,Tipo,Manga,Corte,Talla,Color,Cantidad\n";
+    historial.forEach(m=>{
+        csv+=`${m.fecha},${m.tipo},${m.manga},${m.corte},${m.talla},${m.color},${m.cantidad}\n`;
+    });
+
+    let blob=new Blob([csv],{type:"text/csv"});
+    let url=URL.createObjectURL(blob);
+    let a=document.createElement("a");
+    a.href=url;
+    a.download="historial_parisu.csv";
+    a.click();
+}
+
+mostrarInventario();
+mostrarHistorial();
+
+</script>
+
+</body>
+</html>
